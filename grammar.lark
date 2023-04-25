@@ -1,0 +1,46 @@
+definition: ( CONSTANT | PROCESS_NAME ) 
+  WS_REQUIRED "::=" WS_REQUIRED expression 
+
+expression: process_expression modification_expression? 
+
+process_expression: ("(" process_expression_element ")") |
+  process_expression_element 
+
+process_expression_element: CONSTANT | PROCESS_NAME |
+  action_prefix | sum | parallel_composition 
+
+modification_expression: relabelling | restriction 
+action_prefix: action "." expression 
+action: input_action | output_action 
+input_action: LABEL 
+output_action: "&" LABEL 
+
+sum: expression
+  WS_REQUIRED "+" WS_REQUIRED expression 
+
+parallel_composition: expression
+  WS_REQUIRED "|" WS_REQUIRED expression 
+
+relabelling: "[" relabelling_list "]" 
+relabelling_list: relabel ("," WS relabel)* 
+relabel: LABEL "\" LABEL 
+
+restriction: "\{" WS action_list WS "}" 
+action_list: action ("," WS action)* 
+
+transition: expression
+  WS_REQUIRED "->(" transition_action ")"
+  WS_REQUIRED expression 
+
+transition_action: action | TAU  
+
+# tokens
+CONSTANT: /[A-Z][a-zA-Z]*/ 
+PROCESS_NAME: CONSTANT /(:[0-9]+)?/ 
+LABEL: /[a-z]*/ 
+TAU: /t/ # t is a reserved action which refers to tau
+WS_REQUIRED: /[\s]+/ 
+WS: /[\s]*/ 
+
+%ignore WS_REQUIRED
+%ignore WS
