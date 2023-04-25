@@ -1,22 +1,21 @@
-definition: (CONSTANT | PROCESS_NAME) ASSIGN expression
+definition: identifier _ASSIGN expression
+identifier: CONSTANT | PROCESS_NAME
 
-expression: process_expression modification_expression? 
+expression: process_expression relabelling? restriction?
 process_expression: ("(" process_expression_element ")") | process_expression_element 
-process_expression_element: CONSTANT | PROCESS_NAME | action_prefix | sum | parallel_composition 
+process_expression_element: identifier | action_prefix | sum | parallel_composition | transition
 
-modification_expression: relabelling | restriction 
 action_prefix: action "." expression 
 action: input_action | output_action 
 input_action: LABEL 
 output_action: "&" LABEL 
 
 sum: expression "+" expression 
-
 parallel_composition: expression "|" expression 
 
 relabelling: "[" relabelling_list "]" 
 relabelling_list: relabel ("," relabel)* 
-relabel: LABEL "\\" LABEL 
+relabel: LABEL "/" LABEL 
 
 restriction: "\{" action_list "}" 
 action_list: action ("," action)* 
@@ -30,7 +29,9 @@ PROCESS_NAME: CONSTANT /(:[0-9]+)?/
 LABEL: /[a-z]+/ 
 TAU: /\*/ // the star character is a reserved action which refers to tau
 
-ASSIGN: "::="
+// The underscore will remove the assign operator
+// from the parse tree.
+_ASSIGN: "::="
 
 %import common.WS
 %ignore WS
