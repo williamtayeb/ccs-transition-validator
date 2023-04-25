@@ -1,13 +1,8 @@
-definition: ( CONSTANT | PROCESS_NAME ) 
-  WS_REQUIRED "::=" WS_REQUIRED expression 
+definition: (CONSTANT | PROCESS_NAME) ASSIGN expression
 
 expression: process_expression modification_expression? 
-
-process_expression: ("(" process_expression_element ")") |
-  process_expression_element 
-
-process_expression_element: CONSTANT | PROCESS_NAME |
-  action_prefix | sum | parallel_composition 
+process_expression: ("(" process_expression_element ")") | process_expression_element 
+process_expression_element: CONSTANT | PROCESS_NAME | action_prefix | sum | parallel_composition 
 
 modification_expression: relabelling | restriction 
 action_prefix: action "." expression 
@@ -15,32 +10,27 @@ action: input_action | output_action
 input_action: LABEL 
 output_action: "&" LABEL 
 
-sum: expression
-  WS_REQUIRED "+" WS_REQUIRED expression 
+sum: expression "+" expression 
 
-parallel_composition: expression
-  WS_REQUIRED "|" WS_REQUIRED expression 
+parallel_composition: expression "|" expression 
 
 relabelling: "[" relabelling_list "]" 
-relabelling_list: relabel ("," WS relabel)* 
-relabel: LABEL "\" LABEL 
+relabelling_list: relabel ("," relabel)* 
+relabel: LABEL "\\" LABEL 
 
-restriction: "\{" WS action_list WS "}" 
-action_list: action ("," WS action)* 
+restriction: "\{" action_list "}" 
+action_list: action ("," action)* 
 
-transition: expression
-  WS_REQUIRED "->(" transition_action ")"
-  WS_REQUIRED expression 
-
+transition: expression "->(" transition_action ")" expression 
 transition_action: action | TAU  
 
-# tokens
+// Tokens
 CONSTANT: /[A-Z][a-zA-Z]*/ 
-PROCESS_NAME: CONSTANT /(:[0-9]+)?/ 
-LABEL: /[a-z]*/ 
-TAU: /t/ # t is a reserved action which refers to tau
-WS_REQUIRED: /[\s]+/ 
-WS: /[\s]*/ 
+PROCESS_NAME: CONSTANT /(:[0-9]+)?/
+LABEL: /[a-z]+/ 
+TAU: /\*/ // the star character is a reserved action which refers to tau
 
-%ignore WS_REQUIRED
+ASSIGN: "::="
+
+%import common.WS
 %ignore WS
