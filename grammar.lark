@@ -21,7 +21,7 @@ restriction: "\{" action_list "}"
 action_list: action ("," action)* 
 
 transition: expression "->(" transition_action ")" expression 
-transition_action: action | TAU  
+transition_action: action | TAU
 
 // Tokens
 CONSTANT: /[A-Z][a-zA-Z]*/ 
