@@ -1,9 +1,8 @@
 from sys import argv
-from lark import Lark, ParseError, GrammarError
-import inspect
+from validator import parser
 
-grammar = open("grammar.lark")
-parser = Lark(grammar, parser='lalr', start='definition')
+# from lark import Lark, ParseError, GrammarError
+# import inspect
 
 def p(src):
   print(parser.parse(src).pretty())
