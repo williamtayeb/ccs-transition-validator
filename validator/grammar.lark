@@ -1,4 +1,4 @@
-definition: identifier idsd2 _ASSIGN expression
+definition: identifier _ASSIGN expression
 identifier: CONSTANT | PROCESS_NAME
 
 expression: process_expression relabelling? restriction?

@@ -4,5 +4,8 @@
 # Python
 __pycache__/
 
+# Hypothesis package
+.hypothesis 
+
 # Personal files
 todo.md

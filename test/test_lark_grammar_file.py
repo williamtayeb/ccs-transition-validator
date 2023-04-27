@@ -2,8 +2,10 @@ from unittest import TestCase
 from validator.parser import generate_parser
 from lark import GrammarError, ParseError
 
-class TestLark(TestCase):
+class TestLarkGrammarFile(TestCase):
   def test_grammar_error(self):
+    """e.g. when an undefined rule has been used."""
+
     try:
       generate_parser()
     except GrammarError:
@@ -12,6 +14,8 @@ class TestLark(TestCase):
       pass
 
   def test_parse_error(self):
+    """e.g. when the syntax of the grammar file is wrong."""
+
     try:
       generate_parser()
     except ParseError:
