@@ -1,5 +1,6 @@
-from enum import Enum
-from typing import Tuple
+from enum import StrEnum, auto
+from typing import Tuple, List, Optional
+from dataclasses import dataclass
 
 import string
 import random
@@ -7,15 +8,60 @@ import strgen
 
 TAU_ACTION = '*'
 
-class BinaryOperations(Enum):
+class BinaryOperations:
   SUM = '+'
-  PARALLEL_COMPOSITION = '|'
+  PARALLEL = '|'
+
+class GeneratorOperations(BinaryOperations):
+  RESTRICTION = 'RESTRICTION'
+  RELABELLING = 'RELABELLING'
+
+class Operations(GeneratorOperations):
+  TRANSITION = 'TRANSITION'
+
+@dataclass
+class TransitionOperation():
+  tau_action_only: bool = False
+
+class GeneratorOptions:
+  def __init__(
+    self,
+    process_only: bool = False,
+    declaration: bool = False,
+    max_depth: int = 3,
+    operations: Optional[List[GeneratorOperations | TransitionOperation]] = []
+  ):
+    self.process_only = process_only
+    self.declaration = declaration
+    self.max_depth = max_depth
+    self.operations = operations
+
+    if operations is None or len(operations) == 0:
+      self.operations = [
+        BinaryOperations.SUM,
+        BinaryOperations.PARALLEL,
+        Operations.RESTRICTION,
+        Operations.RELABELLING,
+        TransitionOperation(tau_action_only=False)
+      ]
+
+  def contains_operation(self, operation: Operations) -> bool:
+    for current_operation in self.operations:
+      if (operation == Operations.TRANSITION
+          and isinstance(current_operation, TransitionOperation)):
+        return True
+
+      if (isinstance(current_operation, GeneratorOperations)
+          and current_operation == operation):
+        return True
+    
+    return False
 
 def generate_constant():
-  constant_part = strgen.StringGenerator("[a-z]{1,5}").render()
+  constant_part = strgen.StringGenerator(r"[a-z]{3}").render_list(2, unique=True)
 
-  first = constant_part.example().capitalize()
-  second = constant_part.example().capitalize()
+  first = constant_part[0].capitalize()
+  second = constant_part[1].capitalize()
 
   include_second = random_boolean()
 
@@ -64,7 +110,7 @@ def definition(left, right):
   return f"{left} ::= {right}"
 
 def binary_operator(operation: BinaryOperations, left, right, group=False):
-  expression = f"{left} {operation.value} {right}"
+  expression = f"{left} {operation} {right}"
 
   if group:
     return f"({expression})"
@@ -112,8 +158,8 @@ def generate_definition(expression):
   
   return definition(identifier, expression)
 
-def generate_ccs_expressions():
-  include_transition = random_boolean()
+def generate_ccs_expressions(options: GeneratorOptions = GeneratorOptions()):
+  include_transition = options.contains_operation(Operations.TRANSITION) and random_boolean()
   expression = generate_expression()
 
   if include_transition:
@@ -171,7 +217,7 @@ def generate_expression(current_depth=0, max_depth=1):
 
 def generate_binary_operation(current_depth, max_depth, group=False):
   current_depth += 1
-  operation = random.choice([BinaryOperations.SUM, BinaryOperations.PARALLEL_COMPOSITION])
+  operation = random.choice([BinaryOperations.SUM, BinaryOperations.PARALLEL])
 
   left = generate_expression(current_depth=current_depth, max_depth=max_depth)
   right = generate_expression(current_depth=current_depth, max_depth=max_depth)
