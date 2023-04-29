@@ -13,14 +13,35 @@ class BinaryOperations:
   PARALLEL = '|'
 
 class GeneratorOperations(BinaryOperations):
-  RESTRICTION = 'RESTRICTION'
   RELABELLING = 'RELABELLING'
+  RESTRICTION = 'RESTRICTION'
 
 class Operations(GeneratorOperations):
   TRANSITION = 'TRANSITION'
 
+class GeneratorOperation:
+  operation_type: Operations
+
 @dataclass
-class TransitionOperation():
+class BinaryOperation(GeneratorOperations):
+  operation_type: BinaryOperations
+  group: bool
+
+@dataclass
+class RelabellingOperation(GeneratorOperations):
+  operation_type = GeneratorOperations.RELABELLING
+  min_labels: int = 1
+  max_labels: int = 3
+
+@dataclass
+class RestrictionOperation(GeneratorOperations):
+  operation_type = GeneratorOperations.RESTRICTION
+  min_actions: int = 1
+  max_actions: int = 3
+
+@dataclass
+class TransitionOperation(GeneratorOperations):
+  operation_type: Operations = Operations.TRANSITION
   tau_action_only: bool = False
 
 class GeneratorOptions:
@@ -38,24 +59,33 @@ class GeneratorOptions:
 
     if operations is None or len(operations) == 0:
       self.operations = [
-        BinaryOperations.SUM,
-        BinaryOperations.PARALLEL,
-        Operations.RESTRICTION,
-        Operations.RELABELLING,
+        BinaryOperation(BinaryOperations.SUM, group=False),
+        BinaryOperation(BinaryOperations.PARALLEL, group=False),
+        RelabellingOperation(),
+        RestrictionOperation(),
         TransitionOperation(tau_action_only=False)
       ]
 
-  def contains_operation(self, operation: Operations) -> bool:
+  def contains_operation(self, operation_type: Operations) -> bool:
     for current_operation in self.operations:
-      if (operation == Operations.TRANSITION
-          and isinstance(current_operation, TransitionOperation)):
-        return True
-
-      if (isinstance(current_operation, GeneratorOperations)
-          and current_operation == operation):
+      if (current_operation.operation_type == operation_type):
         return True
     
     return False
+
+  def get_operation(self, operation_type: Operations) -> (
+    GeneratorOperation |
+    BinaryOperation |
+    RelabellingOperation |
+    RestrictionOperation |
+    TransitionOperation
+  ):
+    for current_operation in self.operations:
+      if (current_operation.operation_type == operation_type):
+        return current_operation
+    
+    raise IndexError(f"Operation type '{operation_type}' not found.")
+    
 
 def generate_constant():
   constant_part = strgen.StringGenerator(r"[a-z]{3}").render_list(2, unique=True)
@@ -106,7 +136,7 @@ def generate_relabels():
 def random_boolean():
   return random.choice([True, False])
 
-def definition(left, right):
+def declaration(left, right):
   return f"{left} ::= {right}"
 
 def binary_operator(operation: BinaryOperations, left, right, group=False):
@@ -148,7 +178,7 @@ def decorate_with_output_actions(element: Tuple[int, str]) -> str:
 
   return f"&{label}" if is_output_action else label
 
-def generate_definition(expression):
+def generate_declaration(expression):
   identifier_is_constant = random_boolean()
 
   if identifier_is_constant:
@@ -156,39 +186,43 @@ def generate_definition(expression):
   else:
     identifier = generate_process_name()
   
-  return definition(identifier, expression)
+  return declaration(identifier, expression)
 
 def generate_ccs_expressions(options: GeneratorOptions = GeneratorOptions()):
   include_transition = options.contains_operation(Operations.TRANSITION) and random_boolean()
-  expression = generate_expression()
+  expression = generate_expression(options)
 
   if include_transition:
-    right = generate_expression()
+    right = generate_expression(options)
     action = generate_action()
+
+    if options.get_operation(Operations.TRANSITION).tau_action_only:
+      action = TAU_ACTION
+
     expression = transition(expression, action, right)
   else:
-    include_definition = random_boolean()
+    include_declaration = options.declaration and random_boolean()
 
-    if include_definition:
-      expression = generate_definition(expression)
+    if include_declaration:
+      expression = generate_declaration(expression)
 
   return expression
 
-def generate_expression(current_depth=0, max_depth=1):
+def generate_expression(options: GeneratorOptions, current_depth=0):
   include_action_prefix = random_boolean()
   include_binary_operation = (not include_action_prefix) or random_boolean()
 
-  include_relabelling = random.random() < 0.25
-  include_restriction = random.random() < 0.25
+  include_relabelling = options.contains_operation(Operations.RELABELLING) and (random.random() < 0.25)
+  include_restriction = options.contains_operation(Operations.RESTRICTION) and (random.random() < 0.25)
 
-  if current_depth >= max_depth:
+  if current_depth >= options.max_depth:
     include_binary_operation = False
 
   expression = generate_process_name()
 
   if include_action_prefix:
     if include_binary_operation:
-      expression = generate_binary_operation(current_depth, max_depth, group=True)
+      expression = generate_binary_operation(options, current_depth, group=True)
 
     labels = generate_labels(max_len=3)
 
@@ -203,7 +237,7 @@ def generate_expression(current_depth=0, max_depth=1):
       if include_relabelling or include_restriction:
         group = True
 
-      expression = generate_binary_operation(current_depth, max_depth, group)
+      expression = generate_binary_operation(options, current_depth, group)
 
   if include_relabelling:
     relabels = generate_relabels()
@@ -215,14 +249,17 @@ def generate_expression(current_depth=0, max_depth=1):
 
   return expression
 
-def generate_binary_operation(current_depth, max_depth, group=False):
+def generate_binary_operation(options: GeneratorOptions, current_depth, group=False):
   current_depth += 1
   operation = random.choice([BinaryOperations.SUM, BinaryOperations.PARALLEL])
 
-  left = generate_expression(current_depth=current_depth, max_depth=max_depth)
-  right = generate_expression(current_depth=current_depth, max_depth=max_depth)
+  left = generate_expression(options, current_depth)
+  right = generate_expression(options, current_depth)
 
   return binary_operator(operation, left, right, group)
 
+
+generator_options = GeneratorOptions(max_depth=1)
+
 for x in range(20):
-  print(generate_ccs_expressions())
+  print(generate_ccs_expressions(generator_options))
