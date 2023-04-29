@@ -125,9 +125,9 @@ def generate_labels(min_len=1, max_len=5):
 
   return actions
 
-def generate_relabels():
+def generate_relabels(min_len=1, max_len=10):
   relabels = {}
-  length = random.randint(1, 10)
+  length = random.randint(min_len, max_len)
 
   previous_actions = random.sample(string.ascii_lowercase, k=length)
   new_actions = random.sample(string.ascii_lowercase, k=length)
@@ -255,11 +255,15 @@ def generate_expression(options: GeneratorOptions, current_depth=0):
       expression = generate_binary_operation(options, current_depth, group)
 
   if include_relabelling:
-    relabels = generate_relabels()
+    operation = options.get_operation(Operations.RELABELLING)
+
+    relabels = generate_relabels(operation.min_labels, operation.max_labels)
     expression = relabelling(expression, relabels)
 
   if include_restriction:
-    actions = generate_labels()
+    operation = options.get_operation(Operations.RESTRICTION)
+
+    actions = generate_labels(min_len=operation.min_actions, max_len=operation.max_actions)
     expression = restriction(expression, actions)
 
   return expression
@@ -284,13 +288,86 @@ def generate_binary_operation(options: GeneratorOptions, current_depth, group=Fa
     group = (operation.group or group)
   )
 
-generator_options = GeneratorOptions(declaration=True, max_depth=1, operations=[
-  BinaryOperation(Operations.SUM),
-  BinaryOperation(Operations.PARALLEL),
-  RestrictionOperation(),
-  RelabellingOperation(),
-  TransitionOperation(),
-])
+def generate(options_list: List[GeneratorOptions], len_per_option: int = 5):
+  for i, options in enumerate(options_list):
+    print(f"[{i+1}/{len(options_list)}] Generating...")
 
-for x in range(20):
-  print(generate_ccs_expressions(generator_options))
+    for x in range(len_per_option):
+      print(generate_ccs_expressions(options))
+    
+    print("\n\n")
+
+def get_possible_generator_operations_constructs():
+  operation_constructs = [
+    [
+      BinaryOperation(Operations.SUM)
+    ],
+    [
+      BinaryOperation(Operations.PARALLEL)
+    ],
+    [
+      BinaryOperation(Operations.SUM),
+      BinaryOperation(Operations.PARALLEL),
+    ],
+    [
+      BinaryOperation(Operations.SUM),
+      BinaryOperation(Operations.PARALLEL),
+      RelabellingOperation(),
+    ],
+    [
+      BinaryOperation(Operations.SUM),
+      BinaryOperation(Operations.PARALLEL),
+      RelabellingOperation(),
+      RestrictionOperation(),
+    ],
+    [
+      BinaryOperation(Operations.SUM),
+      BinaryOperation(Operations.PARALLEL),
+      RelabellingOperation(),
+      RestrictionOperation(),
+      TransitionOperation(),
+    ]
+  ]
+
+  return operation_constructs
+
+options_list = []
+possible_constructs = get_possible_generator_operations_constructs()
+
+for construct in possible_constructs:
+  options_list.append(
+    GeneratorOptions(
+      declaration=False,
+      max_depth=1,
+      operations=construct
+    )
+  )
+
+for construct in possible_constructs:
+  options_list.append(
+    GeneratorOptions(
+      declaration=True,
+      max_depth=1,
+      operations=construct
+    )
+  )
+
+for construct in possible_constructs:
+  options_list.append(
+    GeneratorOptions(
+      declaration=False,
+      max_depth=2,
+      operations=construct
+    )
+  )
+
+for construct in possible_constructs:
+  options_list.append(
+    GeneratorOptions(
+      declaration=True,
+      max_depth=2,
+      operations=construct
+    )
+  )
+
+generate(options_list, len_per_option=20)
