@@ -1,15 +1,9 @@
 from enum import Enum
 from typing import Tuple
 
-import warnings
 import string
 import random
-
-from hypothesis import strategies as st
-from hypothesis.errors import NonInteractiveExampleWarning
-
-with warnings.catch_warnings():
-  warnings.filterwarnings("ignore", category=NonInteractiveExampleWarning)
+import strgen
 
 TAU_ACTION = '*'
 
@@ -18,7 +12,7 @@ class BinaryOperations(Enum):
   PARALLEL_COMPOSITION = '|'
 
 def generate_constant():
-  constant_part = st.text(alphabet=string.ascii_lowercase, min_size=1, max_size=5)
+  constant_part = strgen.StringGenerator("[a-z]{1,5}").render()
 
   first = constant_part.example().capitalize()
   second = constant_part.example().capitalize()
