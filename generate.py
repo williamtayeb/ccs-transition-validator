@@ -1,6 +1,7 @@
 from enum import StrEnum, auto
 from typing import Tuple, List, Optional
 from dataclasses import dataclass
+from functools import reduce
 
 import string
 import random
@@ -73,6 +74,15 @@ class GeneratorOptions:
     self.declaration = declaration
     self.max_depth = max_depth
     self.operation_configs = operation_configs
+
+  def get_max_operations(self) -> int:
+    INITIAL_REDUCE_VALUE = 0
+
+    return reduce(
+      (lambda previous, current: (previous + current.max_operations)),
+      self.operation_configs,
+      INITIAL_REDUCE_VALUE
+    )
 
   def contains_operation_type(self, operation_type: Operations) -> bool:
     for operation_config in self.operation_configs:
@@ -382,11 +392,12 @@ def generate_binary_operation(
     group = (operation.group or group)
   )
 
-def generate(options_list: List[GeneratorOptions], len_per_option: int = 5):
+def generate(options_list: List[GeneratorOptions]):
   for i, options in enumerate(options_list):
     print(f"[{i+1}/{len(options_list)}] Generating...")
 
     counter = GeneratorCounter()
+    len_per_option = options.get_max_operations()
 
     for x in range(len_per_option):
       print(generate_ccs_expressions(options, counter))
@@ -473,32 +484,32 @@ def get_possible_generator_operations_constructs():
     [
       GeneratorOperationConfig(
         BinaryOperation(Operations.SUM),
-        min_operations = 1,
-        max_operations = 5
+        min_operations = 5,
+        max_operations = 10
       ),
 
       GeneratorOperationConfig(
         BinaryOperation(Operations.PARALLEL),
-        min_operations = 1,
-        max_operations = 5
+        min_operations = 5,
+        max_operations = 10
       ),
 
       GeneratorOperationConfig(
         RelabellingOperation(),
-        min_operations = 1,
-        max_operations = 5
+        min_operations = 10,
+        max_operations = 20
       ),
 
       GeneratorOperationConfig(
         RestrictionOperation(),
-        min_operations = 1,
-        max_operations = 5
+        min_operations = 10,
+        max_operations = 20
       ),
 
       GeneratorOperationConfig(
         TransitionOperation(),
-        min_operations = 1,
-        max_operations = 5
+        min_operations = 10,
+        max_operations = 20
       ),
     ]
   ]
@@ -544,4 +555,4 @@ for construct in possible_constructs:
     )
   )
 
-generate(options_list, len_per_option=20)
+generate(options_list)
