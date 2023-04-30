@@ -34,7 +34,6 @@ class BinaryOperation(GeneratorOperations):
 @dataclass
 class ActionPrefixOperation(GeneratorOperations):
   operation_type = Operations.ACTION_PREFIX
-  group: bool = False
 
 @dataclass
 class RelabellingOperation(GeneratorOperations):
@@ -60,15 +59,43 @@ class GeneratorOperationConfig:
   max_operations: int = 5
 
 @dataclass
+class OperationCounter:
+  operation_type: Operations
+  count: int = 0
+  has_been_incremented: bool = False
+
 class GeneratorCounter:
-  current_depth: int = 0
-  num_declarations: int = 0
-  num_action_prefixes: int = 0
-  num_sum: int = 0
-  num_parallel: int = 0
-  num_relabelling: int = 0
-  num_restriction: int = 0
-  num_transitions: int = 0
+  def __init__(self):
+    self.current_depth = 0
+    self.operation_counters = [
+      OperationCounter(Operations.ACTION_PREFIX),
+      OperationCounter(Operations.SUM),
+      OperationCounter(Operations.PARALLEL),
+      OperationCounter(Operations.RELABELLING),
+      OperationCounter(Operations.RESTRICTION),
+      OperationCounter(Operations.TRANSITION),
+    ]
+
+  def increment(self, operation_type: Operations):
+    operation_counter = self.get_operation_counter(operation_type)
+
+    if (not operation_counter.has_been_incremented):
+      operation_counter.count += 1
+      operation_counter.has_been_incremented = True
+
+  def get_operation_counter(self, operation_type: Operations) -> OperationCounter:
+    for operation_counter in self.operation_counters:
+      if operation_counter.operation_type == operation_type:
+        return operation_counter
+
+  def get_count(self, operation_type: Operations) -> int:
+    return self.get_operation_counter(operation_type).count
+
+  def next_expression(self):
+    self.current_depth = 0
+
+    for operation_counter in self.operation_counters:
+      operation_counter.has_been_incremented = False
 
 class GeneratorOptions:
   def __init__(
@@ -80,15 +107,6 @@ class GeneratorOptions:
     self.declaration = declaration
     self.max_depth = max_depth
     self.operation_configs = operation_configs
-
-  def get_max_operations(self) -> int:
-    INITIAL_REDUCE_VALUE = 0
-
-    return reduce(
-      (lambda previous, current: (previous + current.max_operations)),
-      self.operation_configs,
-      INITIAL_REDUCE_VALUE
-    )
 
   def contains_operation_type(self, operation_type: Operations) -> bool:
     for operation_config in self.operation_configs:
@@ -121,30 +139,21 @@ class GeneratorOptions:
         (operation_type == Operations.PARALLEL)
       )
 
-      if operation_type == Operations.SUM:
+      if is_binary_operation:
         include_binary_operation = self.is_operation_available(
-          Operations.SUM,
-          counter.num_sum,
-          counter.current_depth,
+          operation_type,
+          counter,
         )
 
-      if operation_type == Operations.PARALLEL:
-        include_binary_operation = self.is_operation_available(
-          Operations.PARALLEL,
-          counter.num_parallel,
-          counter.current_depth,
-        )
-
-      if (is_binary_operation and include_binary_operation):
-        binary_operations.append(operation_config.operation)
+        if include_binary_operation:
+          binary_operations.append(operation_config.operation)
     
     return binary_operations
 
   def is_operation_available(
     self,
     operation_type: Operations,
-    num_operations: int,
-    current_depth: int,
+    counter: GeneratorCounter,
     probability: float = 1.0
   ) -> bool:
     include_operation = False
@@ -153,12 +162,14 @@ class GeneratorOptions:
     if options_has_operation:
       operation_config = self.get_operation_config(operation_type)
 
+      num_operations = counter.get_count(operation_type)
+
       must_include_operation = self.must_include_operation(operation_config, num_operations)
       can_include_operation = self.can_include_operation(operation_config, num_operations)
 
       include_operation = can_include_operation and (probability >= random.random())
 
-      if current_depth == 0:
+      if counter.current_depth == 0:
         include_operation = must_include_operation or include_operation
 
     return include_operation
@@ -269,7 +280,7 @@ def decorate_with_output_actions(element: Tuple[int, str]) -> str:
   return f"&{label}" if is_output_action else label
 
 def generate_declaration(expression):
-  identifier_is_constant = random_boolean()
+  identifier_is_constant = (random.random() < 0.5)
 
   if identifier_is_constant:
     identifier = generate_constant()
@@ -284,8 +295,7 @@ def generate_ccs_expressions(
 ):
   include_transition = options.is_operation_available(
     Operations.TRANSITION,
-    counter.num_transitions,
-    counter.current_depth,
+    counter,
     probability = 0.5
   )
 
@@ -301,43 +311,40 @@ def generate_ccs_expressions(
       action = TAU_ACTION
 
     expression = transition(expression, action, right)
-    counter.num_transitions += 1
+    counter.increment(Operations.TRANSITION)
   else:
     include_declaration = options.declaration and (random.random() < 0.5)
 
     if include_declaration:
       expression = generate_declaration(expression)
-      counter.num_declarations += 1
+      # counter.increment(Operations.DECLARATION)
 
   return expression
 
 def generate_expression(options: GeneratorOptions, counter: GeneratorCounter):
   include_action_prefix = options.is_operation_available(
     Operations.ACTION_PREFIX,
-    counter.num_action_prefixes,
-    counter.current_depth
+    counter,
+    probability = 0.10
   )
 
   include_binary_operation = (
-    options.is_operation_available(Operations.SUM, counter.num_sum, counter.current_depth) or
+    options.is_operation_available(Operations.SUM, counter) or
     options.is_operation_available(
       Operations.PARALLEL,
-      counter.num_parallel,
-      counter.current_depth
+      counter
     )
   )
 
   include_relabelling = options.is_operation_available(
     Operations.RELABELLING,
-    counter.num_relabelling,
-    counter.current_depth,
+    counter,
     probability = 0.10
   )
 
   include_restriction = options.is_operation_available(
     Operations.RESTRICTION,
-    counter.num_restriction,
-    counter.current_depth,
+    counter,
     probability = 0.10
   )
 
@@ -357,8 +364,7 @@ def generate_expression(options: GeneratorOptions, counter: GeneratorCounter):
 
     expression = f"{actions_output}.{expression}"
 
-    if counter.current_depth == 0:
-      counter.num_action_prefixes += 1
+    counter.increment(Operations.ACTION_PREFIX)
   else:
     if include_binary_operation:
       group = random_boolean()
@@ -374,8 +380,7 @@ def generate_expression(options: GeneratorOptions, counter: GeneratorCounter):
     relabels = generate_relabels(operation.min_labels, operation.max_labels)
     expression = relabelling(expression, relabels)
 
-    if counter.current_depth == 0:
-      counter.num_relabelling += 1
+    counter.increment(Operations.RELABELLING)
 
   if include_restriction:
     operation = options.get_operation_config(Operations.RESTRICTION).operation
@@ -383,8 +388,7 @@ def generate_expression(options: GeneratorOptions, counter: GeneratorCounter):
     actions = generate_labels(min_len=operation.min_actions, max_len=operation.max_actions)
     expression = restriction(expression, actions)
 
-    if counter.current_depth == 0:
-      counter.num_restriction += 1
+    counter.increment(Operations.RESTRICTION)
 
   return expression
 
@@ -399,10 +403,10 @@ def generate_binary_operation(
   operation = random.choice(binary_operations)
 
   if operation.operation_type == Operations.SUM:
-    counter.num_sum += 1
+    counter.increment(Operations.SUM)
 
   if operation.operation_type == Operations.PARALLEL:
-    counter.num_parallel += 1
+    counter.increment(Operations.PARALLEL)
 
   left = generate_expression(options, counter)
   right = generate_expression(options, counter)
@@ -419,38 +423,38 @@ def debug():
   operation_configs = [
     GeneratorOperationConfig(
       BinaryOperation(Operations.SUM),
-      min_operations = 1,
-      max_operations = 5
+      min_operations = 5,
+      max_operations = 10
     ),
 
     GeneratorOperationConfig(
       BinaryOperation(Operations.PARALLEL),
-      min_operations = 1,
-      max_operations = 5
+      min_operations = 5,
+      max_operations = 10
     ),
 
     GeneratorOperationConfig(
       ActionPrefixOperation(),
-      min_operations = 1,
-      max_operations = 5
+      min_operations = 5,
+      max_operations = 10
     ),
 
     GeneratorOperationConfig(
       RelabellingOperation(),
-      min_operations = 1,
-      max_operations = 5
+      min_operations = 5,
+      max_operations = 10
     ),
 
     GeneratorOperationConfig(
       RestrictionOperation(),
-      min_operations = 1,
-      max_operations = 5
+      min_operations = 5,
+      max_operations = 10
     ),
 
     GeneratorOperationConfig(
       TransitionOperation(),
-      min_operations = 1,
-      max_operations = 5
+      min_operations = 5,
+      max_operations = 10
     ),
   ]
 
@@ -461,23 +465,22 @@ def debug():
   )
 
   counter = GeneratorCounter()
-  len_per_option = generator_options.get_max_operations()
+  len_per_option = 10
 
   for x in range(len_per_option):
     print(generate_ccs_expressions(generator_options, counter))
-    counter.current_depth = 0
+    counter.next_expression()
 
 
-def generate(options_list: List[GeneratorOptions]):
+def generate(options_list: List[GeneratorOptions], len_per_option = 10):
   for i, options in enumerate(options_list):
     print(f"[{i+1}/{len(options_list)}] Generating...")
 
     counter = GeneratorCounter()
-    len_per_option = options.get_max_operations()
 
     for x in range(len_per_option):
       print(generate_ccs_expressions(options, counter))
-      counter.current_depth = 0
+      counter.next_expression()
     
     print("\n")
     print(counter)
