@@ -9,6 +9,7 @@ import strgen
 
 TAU_ACTION = '*'
 
+# Refactor this shit
 class BinaryOperations:
   SUM = '+'
   PARALLEL = '|'
@@ -28,6 +29,11 @@ class GeneratorOperation:
 @dataclass
 class BinaryOperation(GeneratorOperations):
   operation_type: BinaryOperations
+  group: bool = False
+
+@dataclass
+class ActionPrefixOperation(GeneratorOperations):
+  operation_type = Operations.ACTION_PREFIX
   group: bool = False
 
 @dataclass
@@ -119,12 +125,14 @@ class GeneratorOptions:
         include_binary_operation = self.is_operation_available(
           Operations.SUM,
           counter.num_sum,
+          counter.current_depth,
         )
 
       if operation_type == Operations.PARALLEL:
         include_binary_operation = self.is_operation_available(
           Operations.PARALLEL,
           counter.num_parallel,
+          counter.current_depth,
         )
 
       if (is_binary_operation and include_binary_operation):
@@ -136,6 +144,7 @@ class GeneratorOptions:
     self,
     operation_type: Operations,
     num_operations: int,
+    current_depth: int,
     probability: float = 1.0
   ) -> bool:
     include_operation = False
@@ -147,9 +156,10 @@ class GeneratorOptions:
       must_include_operation = self.must_include_operation(operation_config, num_operations)
       can_include_operation = self.can_include_operation(operation_config, num_operations)
 
-      include_operation = must_include_operation or (
-        can_include_operation and (probability >= random.random())
-      )
+      include_operation = can_include_operation and (probability >= random.random())
+
+      if current_depth == 0:
+        include_operation = must_include_operation or include_operation
 
     return include_operation
 
@@ -275,6 +285,7 @@ def generate_ccs_expressions(
   include_transition = options.is_operation_available(
     Operations.TRANSITION,
     counter.num_transitions,
+    counter.current_depth,
     probability = 0.5
   )
 
@@ -303,24 +314,31 @@ def generate_ccs_expressions(
 def generate_expression(options: GeneratorOptions, counter: GeneratorCounter):
   include_action_prefix = options.is_operation_available(
     Operations.ACTION_PREFIX,
-    counter.num_action_prefixes
+    counter.num_action_prefixes,
+    counter.current_depth
   )
 
   include_binary_operation = (
-    options.is_operation_available(Operations.SUM, counter.num_sum) or
-    options.is_operation_available(Operations.PARALLEL, counter.num_parallel)
+    options.is_operation_available(Operations.SUM, counter.num_sum, counter.current_depth) or
+    options.is_operation_available(
+      Operations.PARALLEL,
+      counter.num_parallel,
+      counter.current_depth
+    )
   )
 
   include_relabelling = options.is_operation_available(
     Operations.RELABELLING,
     counter.num_relabelling,
-    probability = 0.25
+    counter.current_depth,
+    probability = 0.10
   )
 
   include_restriction = options.is_operation_available(
     Operations.RESTRICTION,
     counter.num_restriction,
-    probability = 0.25
+    counter.current_depth,
+    probability = 0.10
   )
 
   if counter.current_depth >= options.max_depth:
@@ -338,7 +356,9 @@ def generate_expression(options: GeneratorOptions, counter: GeneratorCounter):
     actions_output = ".".join(actions)
 
     expression = f"{actions_output}.{expression}"
-    counter.num_action_prefixes += 1
+
+    if counter.current_depth == 0:
+      counter.num_action_prefixes += 1
   else:
     if include_binary_operation:
       group = random_boolean()
@@ -354,7 +374,8 @@ def generate_expression(options: GeneratorOptions, counter: GeneratorCounter):
     relabels = generate_relabels(operation.min_labels, operation.max_labels)
     expression = relabelling(expression, relabels)
 
-    counter.num_relabelling += 1
+    if counter.current_depth == 0:
+      counter.num_relabelling += 1
 
   if include_restriction:
     operation = options.get_operation_config(Operations.RESTRICTION).operation
@@ -362,7 +383,8 @@ def generate_expression(options: GeneratorOptions, counter: GeneratorCounter):
     actions = generate_labels(min_len=operation.min_actions, max_len=operation.max_actions)
     expression = restriction(expression, actions)
 
-    counter.num_restriction += 1
+    if counter.current_depth == 0:
+      counter.num_restriction += 1
 
   return expression
 
@@ -391,6 +413,60 @@ def generate_binary_operation(
     right,
     group = (operation.group or group)
   )
+
+
+def debug():
+  operation_configs = [
+    GeneratorOperationConfig(
+      BinaryOperation(Operations.SUM),
+      min_operations = 1,
+      max_operations = 5
+    ),
+
+    GeneratorOperationConfig(
+      BinaryOperation(Operations.PARALLEL),
+      min_operations = 1,
+      max_operations = 5
+    ),
+
+    GeneratorOperationConfig(
+      ActionPrefixOperation(),
+      min_operations = 1,
+      max_operations = 5
+    ),
+
+    GeneratorOperationConfig(
+      RelabellingOperation(),
+      min_operations = 1,
+      max_operations = 5
+    ),
+
+    GeneratorOperationConfig(
+      RestrictionOperation(),
+      min_operations = 1,
+      max_operations = 5
+    ),
+
+    GeneratorOperationConfig(
+      TransitionOperation(),
+      min_operations = 1,
+      max_operations = 5
+    ),
+  ]
+
+  generator_options = GeneratorOptions(
+    declaration=False,
+    max_depth=1,
+    operation_configs=operation_configs
+  )
+
+  counter = GeneratorCounter()
+  len_per_option = generator_options.get_max_operations()
+
+  for x in range(len_per_option):
+    print(generate_ccs_expressions(generator_options, counter))
+    counter.current_depth = 0
+
 
 def generate(options_list: List[GeneratorOptions]):
   for i, options in enumerate(options_list):
@@ -451,7 +527,7 @@ def get_possible_generator_operations_constructs():
       ),
 
       GeneratorOperationConfig(
-        RelabellingOperation(),
+        ActionPrefixOperation(),
         min_operations = 1,
         max_operations = 5
       ),
@@ -465,6 +541,37 @@ def get_possible_generator_operations_constructs():
 
       GeneratorOperationConfig(
         BinaryOperation(Operations.PARALLEL),
+        min_operations = 1,
+        max_operations = 5
+      ),
+
+      GeneratorOperationConfig(
+        RelabellingOperation(),
+        min_operations = 1,
+        max_operations = 5
+      ),
+
+      GeneratorOperationConfig(
+        ActionPrefixOperation(),
+        min_operations = 1,
+        max_operations = 5
+      ),
+    ],
+    [
+      GeneratorOperationConfig(
+        BinaryOperation(Operations.SUM),
+        min_operations = 1,
+        max_operations = 5
+      ),
+
+      GeneratorOperationConfig(
+        BinaryOperation(Operations.PARALLEL),
+        min_operations = 1,
+        max_operations = 5
+      ),
+
+      GeneratorOperationConfig(
+        ActionPrefixOperation(),
         min_operations = 1,
         max_operations = 5
       ),
@@ -492,6 +599,12 @@ def get_possible_generator_operations_constructs():
         BinaryOperation(Operations.PARALLEL),
         min_operations = 5,
         max_operations = 10
+      ),
+
+      GeneratorOperationConfig(
+        ActionPrefixOperation(),
+        min_operations = 1,
+        max_operations = 5
       ),
 
       GeneratorOperationConfig(
@@ -555,4 +668,5 @@ for construct in possible_constructs:
     )
   )
 
-generate(options_list)
+# generate(options_list)
+debug()
