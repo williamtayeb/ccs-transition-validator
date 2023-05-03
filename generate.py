@@ -1,7 +1,5 @@
-from enum import StrEnum, auto
 from typing import Tuple, List, Optional
 from dataclasses import dataclass
-from functools import reduce
 
 import string
 import random
@@ -96,6 +94,15 @@ class GeneratorCounter:
 
     for operation_counter in self.operation_counters:
       operation_counter.has_been_incremented = False
+  
+  def __str__(self):
+    output = []
+    output.append(f"Current depth: {self.current_depth}")
+
+    for counter in self.operation_counters:
+      output.append(f"({counter.operation_type}, {counter.count}, {counter.has_been_incremented})")
+    
+    return ", ".join(output[0:])
 
 class GeneratorOptions:
   def __init__(
@@ -107,6 +114,16 @@ class GeneratorOptions:
     self.declaration = declaration
     self.max_depth = max_depth
     self.operation_configs = operation_configs
+  
+  def __str__(self):
+    title = f"Declaration: {self.declaration}, Max_Depth: {self.max_depth}"
+
+    config_output = []
+    for config in self.operation_configs:
+      config_output.append(config.operation.operation_type)
+
+    config_output_str = ", ".join(config_output)
+    return f"{title}, " + f"({config_output_str})"
 
   def contains_operation_type(self, operation_type: Operations) -> bool:
     for operation_config in self.operation_configs:
@@ -472,20 +489,44 @@ def debug():
     counter.next_expression()
 
 
-def generate(options_list: List[GeneratorOptions], len_per_option = 10):
-  for i, options in enumerate(options_list):
-    print(f"[{i+1}/{len(options_list)}] Generating...")
+def generate(constructs: List[List[GeneratorOperationConfig]], len_per_option = 10):
+  possible_generator_options = [
+    GeneratorOptions(declaration=False, max_depth=1),
+    GeneratorOptions(declaration=True, max_depth=1),
+    GeneratorOptions(declaration=False, max_depth=2),
+    GeneratorOptions(declaration=True, max_depth=2),
+  ]
 
-    counter = GeneratorCounter()
+  for i, possible_option in enumerate(possible_generator_options):
+    options_list = []
 
-    for x in range(len_per_option):
-      print(generate_ccs_expressions(options, counter))
-      counter.next_expression()
-    
-    print("\n")
-    print(counter)
+    for construct in constructs:
+      options_list.append(
+        GeneratorOptions(
+          possible_option.declaration,
+          possible_option.max_depth,
+          operation_configs=construct
+        )
+      )
 
+    print(f"\033[96m[{i+1}/{len(possible_generator_options)}] Construct: (Declaration: {possible_option.declaration}, Max Depth: {possible_option.max_depth})\033[0m")
     print("\n\n")
+
+    for j, options in enumerate(options_list):
+      print(f"\t -> [{j+1}/{len(options_list)}] Generating...")
+      print(options)
+      print("\n")
+
+      counter = GeneratorCounter()
+
+      for x in range(len_per_option):
+        print(generate_ccs_expressions(options, counter))
+        counter.next_expression()
+      
+      print("\n")
+      print(counter)
+
+      print("\n\n")
 
 def get_possible_generator_operations_constructs():
   operation_constructs = [
@@ -493,14 +534,14 @@ def get_possible_generator_operations_constructs():
       GeneratorOperationConfig(
         BinaryOperation(Operations.SUM),
         min_operations = 1,
-        max_operations = 5
+        max_operations = 10
       ),
     ],
     [
       GeneratorOperationConfig(
         BinaryOperation(Operations.PARALLEL),
         min_operations = 1,
-        max_operations = 5
+        max_operations = 10
       ),
     ],
     [
@@ -544,18 +585,18 @@ def get_possible_generator_operations_constructs():
 
       GeneratorOperationConfig(
         BinaryOperation(Operations.PARALLEL),
+        min_operations = 1,
+        max_operations = 5
+      ),
+
+      GeneratorOperationConfig(
+        ActionPrefixOperation(),
         min_operations = 1,
         max_operations = 5
       ),
 
       GeneratorOperationConfig(
         RelabellingOperation(),
-        min_operations = 1,
-        max_operations = 5
-      ),
-
-      GeneratorOperationConfig(
-        ActionPrefixOperation(),
         min_operations = 1,
         max_operations = 5
       ),
@@ -633,43 +674,10 @@ def get_possible_generator_operations_constructs():
   return operation_constructs
 
 options_list = []
+
 possible_constructs = get_possible_generator_operations_constructs()
+constructs_len = len(possible_constructs)
 
-for construct in possible_constructs:
-  options_list.append(
-    GeneratorOptions(
-      declaration=False,
-      max_depth=1,
-      operation_configs=construct
-    )
-  )
-
-for construct in possible_constructs:
-  options_list.append(
-    GeneratorOptions(
-      declaration=True,
-      max_depth=1,
-      operation_configs=construct
-    )
-  )
-
-for construct in possible_constructs:
-  options_list.append(
-    GeneratorOptions(
-      declaration=False,
-      max_depth=2,
-      operation_configs=construct
-    )
-  )
-
-for construct in possible_constructs:
-  options_list.append(
-    GeneratorOptions(
-      declaration=True,
-      max_depth=2,
-      operation_configs=construct
-    )
-  )
-
-# generate(options_list)
-debug()
+#generate(options_list[0:constructs_len])
+generate(possible_constructs)
+# debug()
