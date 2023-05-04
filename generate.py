@@ -308,18 +308,21 @@ def generate_declaration(expression):
 
 def generate_ccs_expressions(
   options: GeneratorOptions = GeneratorOptions(),
-  counter: GeneratorCounter = GeneratorCounter()
+  counters: List[GeneratorCounter] = [GeneratorCounter(), GeneratorCounter()]
 ):
+  left_counter = counters[0]
+  right_counter = counters[1]
+
   include_transition = options.is_operation_available(
     Operations.TRANSITION,
-    counter,
+    left_counter,
     probability = 0.5
   )
 
-  expression = generate_expression(options, counter)
+  expression = generate_expression(options, left_counter)
 
   if include_transition:
-    right = generate_expression(options, counter)
+    right = generate_expression(options, right_counter)
     action = generate_action()
 
     transition_config = options.get_operation_config(Operations.TRANSITION).operation
@@ -328,7 +331,7 @@ def generate_ccs_expressions(
       action = TAU_ACTION
 
     expression = transition(expression, action, right)
-    counter.increment(Operations.TRANSITION)
+    left_counter.increment(Operations.TRANSITION)
   else:
     include_declaration = options.declaration and (random.random() < 0.5)
 
@@ -517,14 +520,15 @@ def generate(constructs: List[List[GeneratorOperationConfig]], len_per_option = 
       print(options)
       print("\n")
 
-      counter = GeneratorCounter()
+      counters = [GeneratorCounter(), GeneratorCounter()]
 
       for x in range(len_per_option):
-        print(generate_ccs_expressions(options, counter))
-        counter.next_expression()
+        print(generate_ccs_expressions(options, counters))
+        [counter.next_expression() for counter in counters]
       
       print("\n")
-      print(counter)
+      print(f"Left: {counters[0]}\n")
+      print(f"Right: {counters[1]}")
 
       print("\n\n")
 
