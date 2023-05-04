@@ -1,4 +1,4 @@
-from operations import BinaryOperations
+from generator.operations import BinaryOperations
 
 def declaration(left, right):
   return f"{left} ::= {right}"

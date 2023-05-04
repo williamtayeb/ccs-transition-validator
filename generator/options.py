@@ -1,8 +1,8 @@
 import random
 from typing import List, Optional
 
-from operations import Operations, GeneratorOperationConfig
-from counters import GeneratorCounter
+from generator.operations import Operations, GeneratorOperationConfig
+from generator.counters import GeneratorCounter
 
 class GeneratorOptions:
   def __init__(

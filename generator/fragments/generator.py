@@ -8,7 +8,7 @@ def generate_constant():
   first = constant_part[0].capitalize()
   second = constant_part[1].capitalize()
 
-  include_second = (random.random < 0.5)
+  include_second = (random.random() < 0.5)
 
   if include_second:
     return f"{first}{second}"
@@ -19,7 +19,7 @@ def generate_process_name():
   char = random.sample(string.ascii_uppercase, 1)[0]
   number = random.randint(0, 100)
 
-  include_number = (random.random < 0.5)
+  include_number = (random.random() < 0.5)
 
   if include_number:
     return f"{char}:{number}"

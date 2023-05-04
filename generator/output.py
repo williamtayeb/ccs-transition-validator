@@ -1,12 +1,9 @@
 from typing import List
 
-from counters import GeneratorCounter
-from options import GeneratorOptions
-
 from generator import constructs as gc
-from generator.constructs import Construct
-
-from expressions import generate_ccs_statement
+from generator.counters import GeneratorCounter
+from generator.options import GeneratorOptions
+from generator.expressions import generate_ccs_statement
 
 def output_statements(options: GeneratorOptions, len_per_option: int = 10):
   counters = (GeneratorCounter(), GeneratorCounter())
@@ -23,12 +20,11 @@ def output_statements(options: GeneratorOptions, len_per_option: int = 10):
 
 def output_possible_constructs():
   possible_options = gc.get_possible_options()
-  possible_constructs = gc.get_possible_constructs(possible_options)
 
   options_list = []
   for i, possible_option in enumerate(possible_options):
-    constructs = Construct(possible_option, possible_constructs)
-    options_list = gc.get_option_list(constructs)
+    possible_constructs = gc.get_possible_constructs(possible_option)
+    options_list = gc.get_option_list(possible_constructs)
 
     output_possible_option_headline(i, len(possible_options), possible_option)
 

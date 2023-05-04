@@ -1,7 +1,5 @@
-from typing import List
-
 from dataclasses import dataclass
-from operations import Operations
+from generator.operations import Operations
 
 @dataclass
 class OperationCounter:

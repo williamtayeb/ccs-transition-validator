@@ -1,14 +1,14 @@
 import random
 from typing import Tuple, List
 
-from fragments import generator as fg
-from fragments import output
+from generator.fragments import generator as fg
+from generator.fragments import output
 
-from constants import TAU_ACTION
+from generator.constants import TAU_ACTION
 
-from options import GeneratorOptions
-from counters import GeneratorCounter
-from operations import Operations, BinaryOperation
+from generator.options import GeneratorOptions
+from generator.counters import GeneratorCounter
+from generator.operations import Operations, BinaryOperation
 
 def generate_ccs_statement(
   options: GeneratorOptions = GeneratorOptions(),
