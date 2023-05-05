@@ -1,16 +1,18 @@
+start: declaration | expression
 declaration: identifier _ASSIGN expression
-identifier: CONSTANT | PROCESS_NAME
 
 expression: process_expression relabelling? restriction?
 process_expression: ("(" process_expression_element ")") | process_expression_element 
 process_expression_element: identifier | action_prefix | sum | parallel_composition | transition
+
+identifier: CONSTANT | PROCESS_NAME
 
 action_prefix: action "." expression 
 action: input_action | output_action 
 input_action: LABEL 
 output_action: "&" LABEL 
 
-sum: expression "+" expression 
+sum: expression "+" identifier 
 parallel_composition: expression "|" expression 
 
 relabelling: "[" relabelling_list "]" 
