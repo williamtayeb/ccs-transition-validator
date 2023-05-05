@@ -3,60 +3,107 @@ import sys
 from colored import fg, bg, attr
 from unittest import TestCase
 from difflib import unified_diff
+from typing import List
 
 from validator.parser import generate_parser
 
 class SnapshotTestCase(TestCase):
+  def __diff_parse_trees(self, parse_tree1, parse_tree2) -> List[str]:
+    parse_tree_list1 = parse_tree1.pretty().split('\n')
+    parse_tree_list2 = parse_tree2.pretty().split('\n')
+
+    result = unified_diff(parse_tree_list1, parse_tree_list2)
+    return result
+
+  def __replace_tab_with_spaces(self, value: str) -> str:
+    return value.replace('\t', ' ' * 4)
+
+  def __diff_output_title(self, snapshot_name: str) -> List[str]:
+    output = []
+
+    output.append(f"{bg(15)}\n")
+    output.append(attr(0))
+
+    output.append(f"{bg(15)}\n")
+    output.append(f"{fg(1)}   FAIL")
+    output.append(f"{fg(0)} Snapshot name: `{snapshot_name}`")
+    output.append(attr(0))
+
+    output.append(f"{bg(15)}\n")
+    output.append(attr(0))
+
+    return output
+
+  def __diff_output_substract(self, value):
+    diff_output = []
+
+    diff_output.append(f"{bg(225)}\n")
+    diff_output.append(f"{fg(89)}{value}")
+    diff_output.append(f"{attr(0)}")
+
+    return diff_output
+
+  def __diff_output_add(self, value):
+    diff_output = []
+
+    diff_output.append(f"{bg(193)}\n")
+    diff_output.append(f"{fg(29)}{value}")
+    diff_output.append(f"{attr(0)}")
+
+    return diff_output
+
+  def __diff_output_unchanged(self, value):
+    diff_output = []
+
+    diff_output.append(f"{bg(15)}\n")
+    diff_output.append(f"{fg(240)}{value}")
+    diff_output.append(f"{attr(0)}")
+
+    return diff_output
+  
+  def __diff_output(
+    self,
+    diff_list,
+    snapshot_name,
+    ignore_diff_result_lines = 3
+  ) -> str:
+    output = []
+    output.extend(self.__diff_output_title(snapshot_name))
+
+    for i, line in enumerate(diff_list):
+      empty_line = len(line) == 0
+
+      if (i < ignore_diff_result_lines) or empty_line:
+        continue
+
+      first_character = line[0]
+
+      if first_character == '-':
+        output_line = self.__replace_tab_with_spaces(line)
+        output.extend(self.__diff_output_substract(output_line))
+      elif first_character == '+':
+        output_line = self.__replace_tab_with_spaces(line)
+        output.extend(self.__diff_output_add(output_line))
+      else:
+        output.extend(self.__diff_output_unchanged(line))
+
+    output.append(f"{attr(0)}\n")
+    return output
+
   def assert_match_snapshot(self, value, name = ""):
     parser = generate_parser()
 
     parse_tree1 = parser.parse("E:49 + Z")
     parse_tree2 = parser.parse("E:49 | Z")
 
-    output1 = parse_tree1.pretty().split('\n')
-    output2 = parse_tree2.pretty().split('\n')
+    diff_result = self.__diff_parse_trees(parse_tree1, parse_tree2)
+    diff_list = list(diff_result)
 
-    output1 = [f"{s}" for s in output1]
-    output2 = [f"{s}" for s in output2]
+    if len(diff_list) > 0:
+      output = self.__diff_output(diff_list, "renders correctly 1")
+      sys.stdout.writelines(output)
 
-    result = unified_diff(output1, output2)
-    result2 = []
-
-    result2.append(f"{bg(15)}\n")
-    result2.append(f"{attr(0)}")
-
-    result2.append(f"{bg(15)}\n")
-    result2.append(f"{fg(1)}   FAIL")
-    result2.append(f"{fg(0)} Snapshot name: `renders correctly 1`")
-    result2.append(f"{attr(0)}")
-
-    result2.append(f"{bg(15)}\n")
-    result2.append(f"{attr(0)}")
-
-    for i, x in enumerate(result):
-      if i < 3:
-        continue
-
-      if len(x) > 0:
-        if x[0] == '-':
-          x2 = x.replace('\t', ' ' * 4)
-
-          result2.append(f"{bg(225)}\n")
-          result2.append(f"{fg(89)}{x2}")
-          result2.append(f"{attr(0)}")
-        elif x[0] == '+':
-          x2 = x.replace('\t', ' ' * 4)
-
-          result2.append(f"{bg(150)}\n")
-          result2.append(f"{fg(29)}{x2}")
-          result2.append(f"{attr(0)}")
-        else:
-          result2.append(f"{bg(15)}\n")
-          result2.append(f"{fg(240)}{x}")
-          result2.append(f"{attr(0)}")
-
-    sys.stdout.writelines(result2)
-    print(f"{attr(0)}\n")
+      self.fail("Snapshot test failed.")
 
 class TestParser(SnapshotTestCase):
   def test_debug(self):
@@ -64,4 +111,5 @@ class TestParser(SnapshotTestCase):
 
     parse_tree = parser.parse("E:49 + Z")
     self.assert_match_snapshot(parse_tree)
+
     self.fail()
