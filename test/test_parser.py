@@ -1,4 +1,6 @@
 import sys
+import hashlib
+import json
 
 from colored import fg, bg, attr
 from unittest import TestCase
@@ -7,12 +9,21 @@ from typing import List
 
 from validator.parser import generate_parser
 
-class SnapshotTestCase(TestCase):
-  def __diff_parse_trees(self, parse_tree1, parse_tree2) -> List[str]:
-    parse_tree_list1 = parse_tree1.pretty().split('\n')
-    parse_tree_list2 = parse_tree2.pretty().split('\n')
+TEMP_SNAPSHOT_DATA_FILE = "test_parser.json"
 
-    result = unified_diff(parse_tree_list1, parse_tree_list2)
+class SnapshotTestCase(TestCase):
+  def __init__(self, methodName="runTest"):
+    self.snapshots = []
+    super(SnapshotTestCase, self).__init__(methodName)
+
+  def setUp(self):
+    self.__load_snapshots()
+
+  def __diff(self, a, b) -> List[str]:
+    a_lines = a.split('\n')
+    b_lines = b.split('\n')
+
+    result = unified_diff(a_lines, b_lines)
     return result
 
   def __replace_tab_with_spaces(self, value: str) -> str:
@@ -90,17 +101,67 @@ class SnapshotTestCase(TestCase):
     output.append(f"{attr(0)}\n")
     return output
 
+  def __persist_snapshots(self):
+    file = open(TEMP_SNAPSHOT_DATA_FILE, 'w')
+    json.dump(self.snapshots, file, indent=2)
+
+    file.close()
+
+  def __load_snapshots(self):
+    try:
+      file = open(TEMP_SNAPSHOT_DATA_FILE, 'r')
+      snapshots_data = file.read()
+
+      self.snapshots = json.loads(snapshots_data)
+      file.close()
+    except:
+      pass
+
+  def __snapshot_exists(self, identifier: str):
+    for snapshot in self.snapshots:
+      if snapshot["identifier"] == identifier:
+        return True
+
+    return False
+
+  def generate_identifier(self, value: str):
+    identifier = hashlib.sha1(value.encode())
+    return identifier.hexdigest()
+
+  def get_snapshot_data(self, identifier: str):
+    for snapshot in self.snapshots:
+      if snapshot["identifier"] == identifier:
+        return snapshot["data"]
+
+  def update_snapshot_data(self, identifier: str, data: str):
+    for snapshot in self.snapshots:
+      if snapshot["identifier"] == identifier:
+        snapshot["data"] = data
+
+  def append_snapshot_data(self, identifier: str, data: str):
+    self.snapshots.append({
+      "identifier": identifier,
+      "data": data
+    })
+
   def assert_match_snapshot(self, value, name = ""):
-    parser = generate_parser()
+    identifier = name
 
-    parse_tree1 = parser.parse("E:49 + Z")
-    parse_tree2 = parser.parse("E:49 | Z")
+    if name == "":
+      identifier = self.generate_identifier(value)
 
-    diff_result = self.__diff_parse_trees(parse_tree1, parse_tree2)
+    if (not self.__snapshot_exists(identifier)):
+      self.append_snapshot_data(identifier, value)
+      self.__persist_snapshots()
+      return
+
+    snapshot = self.get_snapshot_data(identifier)
+
+    diff_result = self.__diff(snapshot, value)
     diff_list = list(diff_result)
 
     if len(diff_list) > 0:
-      output = self.__diff_output(diff_list, "renders correctly 1")
+      output = self.__diff_output(diff_list, name)
       sys.stdout.writelines(output)
 
       self.fail("Snapshot test failed.")
@@ -109,7 +170,5 @@ class TestParser(SnapshotTestCase):
   def test_debug(self):
     parser = generate_parser()
 
-    parse_tree = parser.parse("E:49 + Z")
-    self.assert_match_snapshot(parse_tree)
-
-    self.fail()
+    parse_tree = parser.parse("E:49 | Z").pretty()
+    self.assert_match_snapshot(parse_tree, "test_debug")

@@ -9,3 +9,6 @@ __pycache__/
 
 # Personal files
 todo.md
+
+# Debug files
+test_parser.json
