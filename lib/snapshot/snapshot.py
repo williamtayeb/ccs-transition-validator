@@ -1,21 +1,8 @@
 import hashlib
 import json
 
-from json import JSONEncoder
 from typing import List
-
-class SnapshotEntry:
-  def __init__(self, identifier, value):
-    self.identifier = identifier
-    self.value = value
-
-  @staticmethod
-  def Decoder(entryDict):
-    return SnapshotEntry(entryDict["identifier"], entryDict["value"])
-
-class SnapshotEntryEncoder(JSONEncoder):
-  def default(self, entryObject: SnapshotEntry):
-    return entryObject.__dict__
+from lib.snapshot.entry import SnapshotEntry, SnapshotEntryEncoder
 
 class Snapshots:
   def __init__(self, file_path):
@@ -26,7 +13,10 @@ class Snapshots:
     with open(self.file_path, 'r') as file:
       snapshots_data = file.read()
 
-    self.snapshots = json.loads(snapshots_data, object_hook=SnapshotEntry.Decoder)
+    self.snapshots = json.loads(
+      snapshots_data,
+      object_hook=SnapshotEntry.Decoder
+    )
 
   def persist(self):
     with open(self.file_path, 'w') as file:
